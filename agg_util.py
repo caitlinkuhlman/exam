@@ -410,3 +410,62 @@ def borda(ranks):
     t1 = time()
     return np.argsort(sums), t1-t0
 
+
+""" The way our rankings are represented is with a vector of items 
+where the index of each item corresponds to its item id
+and the value at that index indicates the rank position of that item.
+so groups[np.argsort(ranking)] yields the groups of the ranked items in ranked order.
+We correct this, and then recover the representation of the ranking by calling 
+np.argsort() on the vector f_agg, which is the ids of the items in rank order."""
+
+def correct_parity(y, groups, thresh):
+    ids = np.argsort(y)
+    gs = groups[ids]
+    f_agg = []
+    #indices of items we skip
+    skip = []
+    #skip pointer to track when added back in
+    ptr = 0 
+    #get size of groups
+    group_counts = np.bincount(groups)
+    c0 = group_counts[0]
+    c1 = group_counts[1]
+    p0 = 0
+    p1 = 0
+    if (c0*c1) % 2 == 0:
+        max_p = np.ceil(c0*c1/2) + np.ceil(thresh/2)
+    else:
+        max_p = np.ceil(c0*c1/2) + np.floor(thresh/2)
+    
+    for i,x in enumerate(gs):
+        while ptr < len(skip):
+            #check skipped items
+            if gs[skip[ptr]] == 0 and p0 + c1 <= max_p: #and (p0 + c1) - (p1 +c0-1) <= max_p:
+                p0 += c1
+                c0 -= 1
+                f_agg.append(ids[skip[ptr]])
+                ptr = ptr+1
+            elif gs[skip[ptr]] == 1 and p1 + c0 <= max_p: #and (p1 + c0) - (p0 +c1 - 1) <= max_p:
+                p1 += c0
+                c1 -= 1
+                f_agg.append(ids[skip[ptr]])
+                ptr = ptr + 1
+            else:
+                break
+                            
+        #handle next item
+        if x == 0 and p0 + c1 <= max_p:
+            p0 += c1
+            c0 -= 1
+            f_agg.append(ids[i])
+        elif x == 1 and p1 + c0 <= max_p:
+            p1 += c0
+            c1 -= 1
+            f_agg.append(ids[i])
+        else:
+            skip.append(i)
+    #add in any remaining skipped items
+    while ptr < len(skip):
+        f_agg.append(ids[skip[ptr]])
+        ptr = ptr + 1
+    return np.argsort(f_agg)     
